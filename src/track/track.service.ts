@@ -2,17 +2,20 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { Track, TrackDocument } from "./schemas/track.schema";
-import { CommentDocument } from "./schemas/comment.schema";
 import { CreateTrackDto } from "./dto/create-track.dto";
 import { UserService } from "../user/user.service";
 import { UpdateUserDto } from "../user/dto/update-user.dto";
 import { CreateCommentDto } from "./dto/create-comment.dto";
+import { S3Service } from '../s3/s3.service';
+import { v4 as uuidv4 } from 'uuid';
+import {Comment, CommentDocument} from './schemas/comment.schema';
 
 @Injectable()
 export class TrackService {
   constructor(@InjectModel(Track.name) private readonly trackModel: Model<TrackDocument>,
               @InjectModel(Comment.name) private readonly commentModel: Model<CommentDocument>,
-              private userService: UserService,) {
+              private userService: UserService,
+              private s3Service: S3Service,) {
   }
 
   async getOne(id: string) {
@@ -43,12 +46,16 @@ export class TrackService {
     };
   }
 
-  async create(track: CreateTrackDto, userId: string) {
+  async create(track: CreateTrackDto, userId: string, audioFile: Express.Multer.File, imageFile: Express.Multer.File) {
     const user = await this.userService.findById(userId);
     if (!user) {
       throw new NotFoundException(`User with id ${userId} not found`);
     }
-    return this.trackModel.create({...track, listens: 0, user: user});
+    const trackName = `audios/${audioFile.filename}-${uuidv4()}`;
+    const pictureName = `images/${imageFile.filename}-${uuidv4()}`;
+    await this.s3Service.uploadAudioFile(audioFile, trackName);
+    await this.s3Service.uploadPictureFile(imageFile, pictureName);
+    return this.trackModel.create({...track, listens: 0, user: user, audioName: trackName, picture: pictureName});
   }
 
   async delete(id: string, userId: string) {

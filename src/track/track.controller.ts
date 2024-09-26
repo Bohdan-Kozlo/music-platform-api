@@ -1,9 +1,22 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get, HttpException, HttpStatus,
+  Param,
+  Post,
+  Query,
+  UploadedFiles,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import { TrackService } from "./track.service";
 import { AccessTokenGuard } from '../common/guards/accessToken.guard';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { GetUser } from '../common/decorators/getUser.decorator';
 import { JwtPayload } from '../auth/strategies/access-token.strategy';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { CreateTrackDto } from './dto/create-track.dto';
 
 @Controller('tracks')
 export class TrackController {
@@ -36,7 +49,31 @@ export class TrackController {
     return this.trackService.delete(id, user.userId);
   }
 
+  @UseGuards(AccessTokenGuard)
+  @Post('upload')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'audio', maxCount: 1 },
+      { name: 'image', maxCount: 1 },
+    ]),
+  )
+  async createTrack(
+    @UploadedFiles() files: { audio?: Express.Multer.File[]; image?: Express.Multer.File[] },
+    @Body() trackData: CreateTrackDto,
+    @GetUser() user: JwtPayload,
+  ) {
+    const audioFile = files.audio?.[0];
+    const imageFile = files.image?.[0];
 
+    if (!audioFile || audioFile.size > 50 * 1024 * 1024) {
+      throw new HttpException('Audio file is required and must be less than 50MB', HttpStatus.BAD_REQUEST);
+    }
 
+    if (!imageFile || imageFile.size > 50 * 1024 * 1024) {
+      throw new HttpException('Image file is required and must be less than 50MB', HttpStatus.BAD_REQUEST);
+    }
+
+    return this.trackService.create(trackData, user.userId, audioFile, imageFile);
+  }
 
 }
