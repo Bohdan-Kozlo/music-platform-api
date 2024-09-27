@@ -4,6 +4,7 @@ import { TrackService } from '../track/track.service';
 import { UserService } from '../user/user.service';
 import { CreateAlbumDto } from './dto/create-album.dto';
 import { Album, AlbumDocument } from './album.schema';
+import { S3Service } from '../s3/s3.service';
 
 @Injectable()
 export class AlbumService {
@@ -11,9 +12,16 @@ export class AlbumService {
     private readonly albumRepository: AlbumRepository,
     private readonly trackService: TrackService,
     private readonly userService: UserService,
+    private readonly s3Service: S3Service,
   ) {}
 
-  async create(createAlbumDto: CreateAlbumDto, userId: string): Promise<Album> {
+  async create(createAlbumDto: CreateAlbumDto, userId: string, imageFile: Express.Multer.File): Promise<Album> {
+    let imageUrl = null;
+
+    if (imageFile) {
+      imageUrl = await this.s3Service.uploadPictureFile(imageFile);
+    }
+
     const user = await this.userService.findById(userId);
     if (!user) {
       throw new NotFoundException(`User with id ${userId} not found`);
@@ -22,6 +30,7 @@ export class AlbumService {
     return await this.albumRepository.create({
       ...createAlbumDto,
       author: user._id,
+      picture: imageUrl,
     });
   }
 

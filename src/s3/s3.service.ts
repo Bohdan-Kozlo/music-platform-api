@@ -2,6 +2,8 @@ import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { ConfigService } from '@nestjs/config';
 import { Readable } from 'stream';
+import { v4 as uuidv4 } from 'uuid';
+
 
 
 @Injectable()
@@ -20,10 +22,13 @@ export class S3Service {
     this.bucketName = configService.get<string>('AWS_BUCKET_NAME');
   }
 
-  async uploadAudioFile(file: Express.Multer.File, fileName: string): Promise<string> {
+  async uploadAudioFile(file: Express.Multer.File): Promise<string> {
+
+    const trackName = `audios/${file.filename}-${uuidv4()}`;
+
     const uploadParams = {
       Bucket: this.bucketName,
-      Key: fileName,
+      Key: trackName,
       Body: file.buffer,
       ContentType: file.mimetype,
     };
@@ -32,7 +37,7 @@ export class S3Service {
 
     try {
       await this.s3Client.send(command);
-      return fileName;
+      return `https://${this.bucketName}.s3.amazonaws.com/${trackName}`;
     } catch (e) {
       throw new HttpException('File upload failed', HttpStatus.BAD_REQUEST);
     }
@@ -54,14 +59,16 @@ export class S3Service {
     }
   }
 
-  async uploadPictureFile(file: Express.Multer.File, fileName: string): Promise<string> {
+  async uploadPictureFile(file: Express.Multer.File): Promise<string> {
     if (!file.mimetype.startsWith('image/')) {
       throw new HttpException('Only image files are allowed', HttpStatus.BAD_REQUEST);
     }
 
+    const imageFileName = `${uuidv4()}-${file.originalname}`;
+
     const uploadParams = {
       Bucket: this.bucketName,
-      Key: fileName,
+      Key: imageFileName,
       Body: file.buffer,
       ContentType: file.mimetype,
     };
@@ -70,7 +77,7 @@ export class S3Service {
 
     try {
       await this.s3Client.send(command);
-      return fileName;
+      return `https://${this.bucketName}.s3.amazonaws.com/${imageFileName}`;
     } catch (e) {
       throw new HttpException('Image upload failed', HttpStatus.BAD_REQUEST);
     }

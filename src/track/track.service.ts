@@ -7,7 +7,6 @@ import { UserService } from "../user/user.service";
 import { UpdateUserDto } from "../user/dto/update-user.dto";
 import { CreateCommentDto } from "./dto/create-comment.dto";
 import { S3Service } from '../s3/s3.service';
-import { v4 as uuidv4 } from 'uuid';
 import {Comment, CommentDocument} from './schemas/comment.schema';
 
 @Injectable()
@@ -51,11 +50,9 @@ export class TrackService {
     if (!user) {
       throw new NotFoundException(`User with id ${userId} not found`);
     }
-    const trackName = `audios/${audioFile.filename}-${uuidv4()}`;
-    const pictureName = `images/${imageFile.filename}-${uuidv4()}`;
-    await this.s3Service.uploadAudioFile(audioFile, trackName);
-    await this.s3Service.uploadPictureFile(imageFile, pictureName);
-    return this.trackModel.create({...track, listens: 0, user: user, audioName: trackName, picture: pictureName});
+    const trackUrl = await this.s3Service.uploadAudioFile(audioFile);
+    const pictureFileUrl = await this.s3Service.uploadPictureFile(imageFile);
+    return this.trackModel.create({...track, listens: 0, user: user, audioName: trackUrl, picture: pictureFileUrl});
   }
 
   async delete(id: string, userId: string) {
