@@ -1,24 +1,23 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
-import { Track, TrackDocument } from "./schemas/track.schema";
 import { CreateTrackDto } from "./dto/create-track.dto";
-import { UserService } from "../user/user.service";
 import { UpdateUserDto } from "../user/dto/update-user.dto";
 import { CreateCommentDto } from "./dto/create-comment.dto";
 import { S3Service } from '../s3/s3.service';
-import {Comment, CommentDocument} from './schemas/comment.schema';
+import { UserService } from "../user/user.service";
+import { TrackRepository } from "./repositories/track.repository";
+import { CommentRepository } from "./repositories/comment.repository";
 
 @Injectable()
 export class TrackService {
-  constructor(@InjectModel(Track.name) private readonly trackModel: Model<TrackDocument>,
-              @InjectModel(Comment.name) private readonly commentModel: Model<CommentDocument>,
-              private userService: UserService,
-              private s3Service: S3Service,) {
-  }
+  constructor(
+    private readonly trackRepository: TrackRepository,
+    private readonly commentRepository: CommentRepository,
+    private readonly userService: UserService,
+    private readonly s3Service: S3Service,
+  ) {}
 
   async getOne(id: string) {
-    const track = await this.trackModel.findById(id).populate('comments');
+    const track = await this.trackRepository.findOne({ _id: id }, { populate: 'comments' });
     if (!track) {
       throw new NotFoundException(`Track with id ${id} not found`);
     }
@@ -28,13 +27,8 @@ export class TrackService {
   async getAll(page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
 
-    const tracks = await this.trackModel
-      .find()
-      .skip(skip)
-      .limit(limit)
-      .exec();
-
-    const totalTracks = await this.trackModel.countDocuments();
+    const tracks = await this.trackRepository.find({}, { skip, limit });
+    const totalTracks = await this.trackRepository.countDocuments();
 
     return {
       tracks,
@@ -45,18 +39,26 @@ export class TrackService {
     };
   }
 
-  async create(track: CreateTrackDto, userId: string, audioFile: Express.Multer.File, imageFile: Express.Multer.File) {
+  async create(trackData: CreateTrackDto, userId: string, audioFile: Express.Multer.File, imageFile: Express.Multer.File) {
     const user = await this.userService.findById(userId);
     if (!user) {
       throw new NotFoundException(`User with id ${userId} not found`);
     }
+
     const trackUrl = await this.s3Service.uploadAudioFile(audioFile);
     const pictureFileUrl = await this.s3Service.uploadPictureFile(imageFile);
-    return this.trackModel.create({...track, listens: 0, user: user, audioName: trackUrl, picture: pictureFileUrl});
+
+    return this.trackRepository.create({
+      ...trackData,
+      listens: 0,
+      user: user._id,
+      audioName: trackUrl,
+      picture: pictureFileUrl,
+    });
   }
 
   async delete(id: string, userId: string) {
-    const deletedTrack = await this.trackModel.deleteOne({ _id: id, user: userId });
+    const deletedTrack = await this.trackRepository.deleteMany({ _id: id, user: userId });
     if (!deletedTrack) {
       throw new NotFoundException(`Track with id ${id} not found`);
     }
@@ -64,25 +66,25 @@ export class TrackService {
   }
 
   async update(id: string, track: UpdateUserDto, userId: string) {
-    return this.trackModel.findOneAndUpdate(
+    return this.trackRepository.findOneAndUpdate(
       { _id: id, userId: userId },
       { $set: track },
-      { new: true },
     );
   }
 
   async addComment(userId: string, commentDto: CreateCommentDto) {
-    const track = await this.trackModel.findById(commentDto.trackId);
+    const track = await this.trackRepository.findOne({ _id: commentDto.trackId });
     if (!track) {
-      throw new NotFoundException(`rack with id ${commentDto.trackId} not found`);
+      throw new NotFoundException(`Track with id ${commentDto.trackId} not found`);
     }
+
     const user = await this.userService.findById(userId);
-    const comment = await this.commentModel.create({...commentDto});
+    const comment = await this.commentRepository.create({ ...commentDto });
+
     user.comments.push(comment);
     await user.save();
+
     track.comments.push(comment);
     return track.save();
   }
-
-  
 }

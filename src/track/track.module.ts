@@ -6,6 +6,8 @@ import { CommentSchema, Comment } from './schemas/comment.schema';
 import { TrackController } from './track.controller';
 import { UserModule } from "../user/user.module";
 import { S3Module } from '../s3/s3.module';
+import { TrackRepository } from './repositories/track.repository';
+import { CommentRepository } from './repositories/comment.repository';
 
 @Module({
   imports: [
@@ -16,7 +18,7 @@ import { S3Module } from '../s3/s3.module';
     UserModule,
     S3Module,
   ],
-  providers: [TrackService],
+  providers: [TrackService, TrackRepository, CommentRepository],
   controllers: [TrackController],
   exports: [TrackService],
 })

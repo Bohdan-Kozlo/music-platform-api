@@ -9,7 +9,7 @@ export class UserService {
   constructor(private userRepository: UserRepository) {}
 
   async findById(userId: string)  {
-    return this.userRepository.findOne({ userId: userId });
+    return this.userRepository.findOne({_id : userId });
   }
 
   findByEmail(email: string) {

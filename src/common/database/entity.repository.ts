@@ -14,8 +14,18 @@ export abstract class EntityRepository<T extends Document> {
       .exec();
   }
 
-  async find(entityFilterQuery: FilterQuery<T>): Promise<T[] | null> {
-    return this.entityModel.find(entityFilterQuery);
+  async find(
+    entityFilterQuery: FilterQuery<T>,
+    options?: { skip?: number; limit?: number }
+  ): Promise<T[]> {
+    const query = this.entityModel.find(entityFilterQuery);
+    if (options?.skip) {
+      query.skip(options.skip);
+    }
+    if (options?.limit) {
+      query.limit(options.limit);
+    }
+    return query.exec();
   }
 
   async create(createEntityData: unknown): Promise<T> {
@@ -27,7 +37,7 @@ export abstract class EntityRepository<T extends Document> {
     entityFilterQuery: FilterQuery<T>,
     updateEntityData: UpdateQuery<unknown>,
   ): Promise<T | null> {
-    return this.entityModel.findByIdAndUpdate(
+    return this.entityModel.findOneAndUpdate(
       entityFilterQuery,
       updateEntityData,
       {
@@ -39,5 +49,9 @@ export abstract class EntityRepository<T extends Document> {
   async deleteMany(entityFilterQuery: FilterQuery<T>): Promise<boolean> {
     const deleteResult = await this.entityModel.deleteMany(entityFilterQuery);
     return deleteResult.deletedCount >= 1;
+  }
+
+  async countDocuments(entityFilterQuery: FilterQuery<T> = {}): Promise<number> {
+    return this.entityModel.countDocuments(entityFilterQuery).exec();
   }
 }
